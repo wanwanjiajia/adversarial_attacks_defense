@@ -2,6 +2,7 @@ import numpy as np
 import os
 import time
 import random
+import datetime
 from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
@@ -383,12 +384,13 @@ def main():
     plt.legend(['No Dimension Reduction(3000D)', 'PCA(100D)', 'PCA(10D)', 'PCA(1D)', 'LDA(1D)'],fontsize=10)
 
     plt.tight_layout()
-    plt.savefig("result.jpg")
+    d_now = datetime.date.today()
+    plt.savefig("../result"+d_now+".jpg")
     plt.show()
     # title = [["FeatureHashingTrick(Feature_Count)", "Dimension Reduction Method", "F measure", "Recall", "AUC",
     #           "Distance_self", "Distance_MMD", "Distance_Energy", "Robustness", "Elapsed_Time"]]
     # np.savetxt("result.csv",X=np.array(title),fmt='%s', delimiter=",")
-    np.savetxt("result.csv",X=np.array(data), fmt='%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s', delimiter=",")
+    np.savetxt("result."+d_now+"csv",X=np.array(data), fmt='%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s', delimiter=",")
 
 if __name__ == "__main__":
     main()
