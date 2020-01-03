@@ -1,3 +1,12 @@
+# _*_coding:utf-8 _*_
+
+# @Time      :2019/12/22 20:03
+
+# @Author    : Wanjia Zheng
+
+# @File      :Energy_Distance.py
+
+# @Software  :PyCharm
 from scipy.stats import energy_distance
 import numpy as np
 

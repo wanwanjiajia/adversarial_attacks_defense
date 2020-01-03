@@ -1,6 +1,14 @@
+# _*_coding:utf-8 _*_
+
+# @Time      :2019/12/22 20:03
+
+# @Author    : Wanjia Zheng
+
+# @File      :MMD_Distance.py
+
+# @Software  :PyCharm
 import torch
 from torch.autograd import Variable
-
 
 def guassian_kernel(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
     '''

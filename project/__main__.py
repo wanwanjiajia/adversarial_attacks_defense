@@ -1,74 +1,37 @@
+# _*_coding:utf-8 _*_
+
+# @Time      :2020/01/02 16:49
+
+# @Author    : Wanjia Zheng
+
+# @File      :__main__.py
+
+# @Software  :PyCharm
+
 import numpy as np
 import os
 import time
 import random
 import datetime
+import sklearn.ensemble
+import matplotlib.pyplot as plt
+
 from sklearn import svm
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
-import matplotlib.pyplot as plt
 from sklearn.feature_extraction.text import HashingVectorizer
-import sklearn.ensemble
 from sklearn.model_selection import cross_validate
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from distance_mmd import *
+from distance_energy import *
 
-import MMD_Distance
-import Energy_Distance
+def draw_2d_bar(x, y):
+    plt.bar(x, y, label="test")
 
-def pca_visulation(X_train, Y_train, X_test, dim):
-    pca = PCA(n_components=dim)
-    X_pca_train = np.array(pca.fit_transform(X_train))
-    X_pca_test = pca.transform(X_test)
-    print(pca.explained_variance_ratio_)
-
-    # draw figure of train dataset and test dataset
-    # X_pca_train_clean = np.array([[0., 0., 0.]])
-    # X_pca_train_mal = np.array([[0., 0., 0.]])
-    # ax = plt.subplot(111, projection='3d')
-    # for i in range(0, Y_train.shape[0]):
-    #     if Y_train[i] == [1]:
-    #         X_pca_train_clean = np.insert(X_pca_train_clean, 0, X_pca_train[i], axis=0)
-    #     else:
-    #         X_pca_train_mal = np.insert(X_pca_train_mal, 0, X_pca_train[i], axis=0)
-    #
-    # ax.scatter(X_pca_train_clean[:, 0], X_pca_train_clean[:, 1], X_pca_train_clean[:, 2], c='y')
-    # ax.scatter(X_pca_train_mal[:, 0], X_pca_train_mal[:, 1], X_pca_train_mal[:, 2], c='r')
-    #
-    # ax.set_zlabel('Z')
-    # ax.set_ylabel('Y')
-    # ax.set_xlabel('X')
-    #
-    # plt.show()
-
-    return X_pca_train, X_pca_test
-
-def feature_engineer_class(hash, type):
-
-    if type == 1:
-        tests = np.loadtxt("cleanware.csv", delimiter=",", skiprows=1, dtype=bytes).astype(str)[:, :]
-    else:
-        tests = np.loadtxt("malware.csv", delimiter=",", skiprows=1, dtype=bytes).astype(str)[:, :]
-
-    hashes = tests[:, 3].tolist()
-    print(hash)
-
-    if hash in hashes:
-        hash_index = hashes.index(hash)
-    else:
-        hash_index = -1
-    print(hash_index)
-    if hash_index != -1:
-        # Platform,GUI Program,Console,Program,DLL,Packed,Anti-Debug,mutex,contains,base64
-        dataset = tests[hash_index, 13:20]
-        if dataset[0].find("32 bit") != -1: dataset[0] = -1
-        else: dataset[0] = 1
-        for i in range(1, 7):
-            if dataset[i].find("no (yes)") != -1: dataset[i] = 0
-            elif dataset[i].find("no") != -1: dataset[i] = -1
-            else: dataset[i] = 1
-    else:
-        dataset = [2,2,2,2,2,2,2,2,2]
-    return dataset
+    plt.xlabel("num")
+    plt.ylabel("distance")
+    plt.legend(loc="upper right")
+    plt.show()
 
 def feature_engineer_text(path, type, data_count):
     count = 0
@@ -164,20 +127,6 @@ def feature_engineer_text(path, type, data_count):
 
     return text_features,hash_features
 
-def draw_2d_bar(x, y):
-    plt.bar(x, y, label="test")
-
-    plt.xlabel("num")
-    plt.ylabel("distance")
-    plt.legend(loc="upper right")
-    plt.show()
-
-def draw_2d_roc(x, y):
-    plt.figure(figsize=(10, 10))
-    plt.plot(fpr, tpr, color='darkorange',
-             lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
-
-
 def main():
     # load dataset (clean:5000, malware:5000)
     data = []
@@ -221,7 +170,7 @@ def main():
         X = np.array(datasets_3)
 
         Y = np.append(clean_label, mal_label, axis=0)
-        # divide the train data and test data(train 9,test 1)
+        # divide the train data and tests data(train 9,tests 1)
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, random_state=0)
         np.set_printoptions(threshold=np.inf)
 
