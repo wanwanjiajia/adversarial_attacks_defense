@@ -25,6 +25,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from distance_mmd import *
 from distance_energy import *
 
+
 def draw_2d_bar(x, y):
     plt.bar(x, y, label="test")
 
@@ -32,6 +33,7 @@ def draw_2d_bar(x, y):
     plt.ylabel("distance")
     plt.legend(loc="upper right")
     plt.show()
+
 
 def feature_engineer_text(path, type, data_count):
     count = 0
@@ -48,7 +50,7 @@ def feature_engineer_text(path, type, data_count):
             count = count + 1
             with open(file_path,'r') as f:
                 image_dos_header = ''
-                image_NT_headers = ''
+                image_nt_headers = ''
                 image_file_header = ''
                 image_optional_header = ''
                 image_section_header = ''
@@ -96,7 +98,7 @@ def feature_engineer_text(path, type, data_count):
                         if flag == 1:
                             image_dos_header = "{0}{1} ".format(image_dos_header, ' '.join(line.split()[2:]))
                         elif flag == 2:
-                            image_NT_headers = "{0}{1} ".format(image_NT_headers, ' '.join(line.split()[2:]))
+                            image_nt_headers = "{0}{1} ".format(image_nt_headers, ' '.join(line.split()[2:]))
                         elif flag == 3:
                             image_file_header = "{0}{1} ".format(image_file_header, ' '.join(line.split()[2:]))
                         elif flag == 4:
@@ -115,7 +117,7 @@ def feature_engineer_text(path, type, data_count):
                             debug = "{0}{1}".format(debug, ' '.join(line.split()[2:]))
                 text_features.append(
                     [
-                        "{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}".format(image_dos_header, image_NT_headers,
+                        "{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}".format(image_dos_header, image_nt_headers,
                                                  image_file_header, image_optional_header, image_section_header,
                                                 image_directory, image_import, image_resource, dll, debug).strip()
                      ]
@@ -128,7 +130,7 @@ def feature_engineer_text(path, type, data_count):
     return text_features,hash_features
 
 def main():
-    # load dataset (clean:5000, malware:5000)
+    # loading dataset (clean:5000, malware:5000)
     data = []
     fig_count = 0
 
@@ -168,7 +170,6 @@ def main():
         # transfer data format to int32
 
         X = np.array(datasets_3)
-
         Y = np.append(clean_label, mal_label, axis=0)
         # divide the train data and tests data(train 9,tests 1)
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, random_state=0)
@@ -203,7 +204,7 @@ def main():
             if j == 4:
                 fig_title = "LDA(1D)"
                 lda = LinearDiscriminantAnalysis(n_components=1)
-                X_pca_train = lda.fit_transform(X_train,Y_train.ravel())
+                X_pca_train = lda.fit_transform(X_train, Y_train.ravel())
                 X_pca_test = lda.transform(X_test)
                 fig_count = fig_count+1
 
@@ -220,7 +221,7 @@ def main():
             if len(tmp_clean) > len(tmp_mal):
                 mmd_mal = tmp_mal
                 mmd_clean = random.sample(tmp_clean, len(tmp_mal))
-            else :
+            else:
                 mmd_mal = random.sample(tmp_clean, len(tmp_clean))
                 mmd_clean = tmp_clean
 
@@ -230,19 +231,10 @@ def main():
             else:
                 mmd_distance = 0
 
-            print(len(mmd_mal))
-            print(len(mmd_clean))
             energy_distance = Energy_Distance.ed(mmd_clean, mmd_mal)
             print("Energy Distance:", energy_distance)
 
             # Distance self calculation #
-            # for ii in range(len(tmp_clean)):
-            #     for jj in range(len(tmp_mal)):
-            #         distance_tmp = []
-            #         distance_tmp.append(np.linalg.norm(tmp_clean[ii][:] - tmp_mal[jj][:]))
-            #     distance_sum.append(np.mean(distance_tmp))
-            # distance_self = round(np.mean(distance_sum),2)
-
             distance_self = np.linalg.norm(np.array(mmd_clean)-np.array(mmd_mal))
             print("Eugrid Distance:", distance_self)
 
@@ -252,9 +244,9 @@ def main():
                 t = time.process_time()
                 if n == 0:
                     model = sklearn.ensemble.RandomForestClassifier(max_depth=None,
-                                  n_estimators=10,
-                                  bootstrap=False,
-                                  criterion='entropy', random_state=0)
+                                                                    n_estimators=10,
+                                                                    bootstrap=False,
+                                                                    criterion='entropy', random_state=0)
                 elif n == -1:
                     model = svm.SVC()
                     model.fit(X_pca_train, Y_train.ravel())
@@ -300,7 +292,6 @@ def main():
                 else:
                     model = LinearDiscriminantAnalysis(n_components=1)
 
-
                 print("Model:", n)
                 scores = cross_validate(model, X_pca_train, Y_train.ravel(), cv=10,
                                         scoring=['precision', 'f1', 'accuracy', 'recall'], return_train_score=False)
@@ -309,13 +300,7 @@ def main():
                 recall = str(round(100 * scores['test_recall'].mean(), 2)) + "%"
                 f1 = str(round(100 * scores['test_f1'].mean(), 2)) + "%"
                 precision = str(round(100 * scores['test_precision'].mean(), 2)) + "%"
-                # tp, fn, fp, tn = metrics.confusion_matrix(Y_test, Y_predict).ravel()
 
-                # Y_predict = model.predict(X_pca_test)
-                # precision = precision_score(Y_test, Y_predict)
-                # recall = recall_score(Y_test, Y_predict)
-                # f1 = f1_score(Y_test, Y_predict)
-                # auc = roc_auc_score(Y_test, Y_predict)
                 data.append([mode_type[n], fig_title, feature_count[r], f1, precision, recall, auc,
                              distance_self, mmd_distance, energy_distance, elapsed_time])
             print("*** Model Training Ended ***")
@@ -341,5 +326,7 @@ def main():
     # np.savetxt("result.csv",X=np.array(title),fmt='%s', delimiter=",")
     np.savetxt("result."+d_now+"csv",X=np.array(data), fmt='%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s', delimiter=",")
 
+
 if __name__ == "__main__":
     main()
+
