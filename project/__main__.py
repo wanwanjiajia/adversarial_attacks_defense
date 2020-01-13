@@ -8,323 +8,106 @@
 
 # @Software  :PyCharm
 
-import numpy as np
-import os
 import time
-import random
-import datetime
-import sklearn.ensemble
-import matplotlib.pyplot as plt
+import config as cf
+from distance_calculation import *
+from machine_learning_model import *
+from output import *
 
-from sklearn import svm
-from sklearn.model_selection import train_test_split
-from sklearn.decomposition import PCA
-from sklearn.feature_extraction.text import HashingVectorizer
-from sklearn.model_selection import cross_validate
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from distance_mmd import *
-from distance_energy import *
-
-
-def draw_2d_bar(x, y):
-    plt.bar(x, y, label="test")
-
-    plt.xlabel("num")
-    plt.ylabel("distance")
-    plt.legend(loc="upper right")
-    plt.show()
-
-
-def feature_engineer_text(path, type, data_count):
-    count = 0
-    flag = 0
-    text_features = []
-    hash_features = []
-
-    for root, dirs, files in os.walk(path):
-        for file in files:
-            file_path = "{0}{1}".format(root,file)
-            if count > data_count-1:
-                count = 0
-                break
-            count = count + 1
-            with open(file_path,'r') as f:
-                image_dos_header = ''
-                image_nt_headers = ''
-                image_file_header = ''
-                image_optional_header = ''
-                image_section_header = ''
-                image_directory = ''
-                image_import = ''
-                image_resource = ''
-                dll = ''
-                debug = ''
-                for line in f:
-                    if line.find("[IMAGE_DOS_HEADER]") != -1:
-                        flag = 1
-                        continue
-                    elif line.find("[IMAGE_NT_HEADERS]") != -1:
-                        flag = 2
-                        continue
-                    elif line.find("[IMAGE_FILE_HEADER]") != -1:
-                        flag = 3
-                        continue
-                    elif line.find("[IMAGE_OPTIONAL_HEADER]") != -1:
-                        flag = 4
-                        continue
-                    elif line.find("[IMAGE_SECTION_HEADER]") != -1:
-                        flag = 5
-                        continue
-                    elif line.find("[IMAGE_DIRECTORY_") != -1:
-                        flag = 6
-                        continue
-                    elif line.find("[IMAGE_IMPORT_") != -1:
-                        flag = 7
-                        continue
-                    elif line.find("[IMAGE_RESOURCE_") != -1:
-                        flag = 8
-                        continue
-                    elif line.find(".dll") != -1:
-                        flag = 9
-                        dll = "{0}{1}".format(dll, ' '.join(line.split()[0]))
-                        continue
-                    elif line.find("[IMAGE_DEBUG_") != -1:
-                        flag = 10
-                        continue
-                    elif line.find("-----") != -1 or line.find("0x") == -1:
-                        flag = 0
-                        continue
-                    else :
-                        if flag == 1:
-                            image_dos_header = "{0}{1} ".format(image_dos_header, ' '.join(line.split()[2:]))
-                        elif flag == 2:
-                            image_nt_headers = "{0}{1} ".format(image_nt_headers, ' '.join(line.split()[2:]))
-                        elif flag == 3:
-                            image_file_header = "{0}{1} ".format(image_file_header, ' '.join(line.split()[2:]))
-                        elif flag == 4:
-                            image_optional_header = "{0}{1} ".format(image_optional_header, ' '.join(line.split()[2:]))
-                        elif flag == 5:
-                            image_section_header = "{0}{1} ".format(image_section_header, ' '.join(line.split()[2:]))
-                        elif flag == 6:
-                            image_directory = "{0}{1} ".format(image_directory, ' '.join(line.split()[2:]))
-                        elif flag == 7:
-                            image_import = "{0}{1} ".format(image_import, ' '.join(line.split()[2:]))
-                        elif flag == 8:
-                            image_resource = "{0}{1} ".format(image_resource, ' '.join(line.split()[2:]))
-                        elif flag == 9:
-                            dll = "{0}{1}".format(dll, ' '.join(line.split()[0]))
-                        elif flag == 10:
-                            debug = "{0}{1}".format(debug, ' '.join(line.split()[2:]))
-                text_features.append(
-                    [
-                        "{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}".format(image_dos_header, image_nt_headers,
-                                                 image_file_header, image_optional_header, image_section_header,
-                                                image_directory, image_import, image_resource, dll, debug).strip()
-                     ]
-                )
-
-                #hash_feature = '"{0}"'.format(file.replace(".txt",""))
-                #hash_features.append(feature_engineer_class(hash_feature, type))
-                flag = 0
-
-    return text_features,hash_features
 
 def main():
-    # loading dataset (clean:5000, malware:5000)
-    data = []
-    fig_count = 0
+    cf.init()  # config global var
+    cf.set_value("output_data", [])
+    cf.set_value("dimen_reduc_type", 0)
+    cf.set_value("data_count", 3000)
+    cf.set_value("feature_count", 3000)
+    data_count = cf.get_value("data_count")
+    feature_count = cf.get_value("feature_count")
 
-    plt.rcParams['font.family'] = 'Times New Roman'  # font familyの設定
-    plt.rcParams['mathtext.fontset'] = 'stix'  # math fontの設定
-    plt.rcParams["font.size"] = 15  # 全体のフォントサイズが変更されます。
-    plt.rcParams['xtick.direction'] = 'in'  # x axis in
-    plt.rcParams['ytick.direction'] = 'in'  # y axis in
-    plt.rcParams['axes.linewidth'] = 1.0  # axis line width
+    fe_type_num = 0
+    output_file_name = "result_pe_"+str(data_count)
 
-    for r in range(1):
-        data_count = 3000
-        feature_count = [3000,2500,2000,1500,1000]
-        mode_type = ['RF','SVM(Linear)','SVM(RBF)','LDA']
+    attack_x = [[] for i in range(5)]
+    attack_y = [[] for i in range(5)]
+    attack_rate_nodebug = [[] for i in range(5)]
 
-        mal_label = np.ones((data_count,1))*(1)
-        clean_label = np.ones((data_count,1))*(0)
+    dimen_reduc_type = ["No Dimension Reduction("+str(data_count)+")", "PCA(100D)", "PCA(10D)", "PCA(1D)", "LDA(1D)"]
+    model_type = ['RF', 'SVM(Linear)', 'LDA']
+    fe_type = ['pe_header', 'all_text', 'all_text_nodebug']
 
-        print("*** Features Engineer Started ***")
-        clean_path = "/Users/wanjiazheng/データセット/FFRIDataset2018/cleanware/"
-        malware_path = "/Users/wanjiazheng/データセット/FFRIDataset2018/malware/"
-        clean_texts,clean_hash = feature_engineer_text(clean_path, 1, data_count)
-        malware_texts,malware_hash = feature_engineer_text(malware_path, -1, data_count)
-        texts = clean_texts + malware_texts
+    # dataset_processing
+    #   -> loading dataset(clean:5000, malware:5000)
+    #   -> feature engineering
+    #   -> hashing function
+    #   -> divide dataset(test:1, train:9)
 
-        datasets_2 = np.array(texts).reshape(data_count*2,1)
-        vectorizer = HashingVectorizer(n_features=3000)
-        for h in range(data_count*2):
-            if h==0:
-                datasets_3 = vectorizer.fit_transform(datasets_2[0]).toarray()
+    if fe_type_num == 0:
+        X_train_all, X_test_all, Y_train_all, Y_test_all = data_processing.data_processing(feature_count,
+                                                                                           fe_type[0])
+    else:
+        X_train_all, X_test_all, Y_train_all, Y_test_all = data_processing.data_processing(feature_count,
+                                                                                           fe_type[1])
+        X_train_tmp, X_test_tmp, Y_train_reduced, Y_test_reduced = data_processing.data_processing(feature_count,
+                                                                                           fe_type[2])
+
+    j = cf.get_value("dimen_reduc_type")
+    while j < len(dimen_reduc_type):
+        print("dimen_reduc", dimen_reduc_type[j])
+        # do dimension reduction to X axis
+        X_train_reduced_all, X_test_reduced_all = dimension_reduction.dimension_reduction(X_train_all, X_test_all, Y_train_all)
+
+        # select training data to calculate the distances
+        distance_mal, distance_clean = distance_data.distance_data(X_train_reduced_all, Y_train_all)
+
+        # mmd distance
+        if j != 0 and j != 1:
+            mmd_distance = md_distance.mmd_rbf(distance_clean, distance_mal)
+        else:
+            mmd_distance = 0
+        # energy distance
+        energy_distance = energi_distance.ed(distance_clean, distance_mal)
+        # eugrid distance
+        eugrid_distance = eugri_distance.ed(distance_clean, distance_mal)
+
+        for n in range(3):
+            t = time.process_time()
+            if n == 0:
+                model_all = model_training.rf()
+            elif n == -1:
+                model_all = model_training.svm_rbf(X_train_reduced_all, Y_train_all)
+            elif n == 1:
+                model_all, model_attack = model_training.svm_linear(X_train_reduced_all, Y_train_all)
+
+                attack_x_tmp, attack_y_tmp = model_attacks.svm_attack(model_attack, X_test_reduced_all, Y_test_all)
+                attack_x[j] = attack_x_tmp
+                attack_y[j] = attack_y_tmp
+
+                if fe_type_num != 0:
+                    attack_rate_nodebug_tmp = model_attacks.delete_debug(model_attack, X_test_reduced_all, Y_test_all,
+                                                                         X_train_tmp, X_test_tmp, Y_train_reduced, Y_test_reduced)
+                    attack_rate_nodebug[j] = attack_rate_nodebug_tmp
+
             else:
-                datasets_tmp = vectorizer.fit_transform(datasets_2[h]).toarray()
-                datasets_3 = np.insert(datasets_3, 0, values=datasets_tmp, axis=0)
+                model_all = model_training.lda()
 
-        print("*** Features Engineer End ***")
-
-        # transfer data format to int32
-
-        X = np.array(datasets_3)
-        Y = np.append(clean_label, mal_label, axis=0)
-        # divide the train data and tests data(train 9,tests 1)
-        X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.1, random_state=0)
-        np.set_printoptions(threshold=np.inf)
-
-        attack_x = [[] for i in range(5)]
-        attack_y = [[] for i in range(5)]
-
-        for j in range(1):
-
-            print("*** Dimension Reduction Started ***")
-            if j == 0:
-                fig_title = "No Dimension Reduction(3000)"
-                X_pca_train = X_train
-                X_pca_test = X_test
-            if j == 1:
-                fig_title = "PCA(100D)"
-                pca = PCA(n_components=100)
-                X_pca_train = np.array(pca.fit_transform(X_train))
-                X_pca_test = pca.transform(X_test)
-            if j == 2:
-                fig_title = "PCA(10D)"
-                pca = PCA(n_components=10)
-                X_pca_train = np.array(pca.fit_transform(X_train))
-                X_pca_test = pca.transform(X_test)
-            if j == 3:
-                fig_title = "PCA(1D)"
-                pca = PCA(n_components=1)
-                X_pca_train = np.array(pca.fit_transform(X_train))
-                X_pca_test = pca.transform(X_test)
-                fig_count = fig_count+1
-            if j == 4:
-                fig_title = "LDA(1D)"
-                lda = LinearDiscriminantAnalysis(n_components=1)
-                X_pca_train = lda.fit_transform(X_train, Y_train.ravel())
-                X_pca_test = lda.transform(X_test)
-                fig_count = fig_count+1
-
-            print("*** Dimension Reduction Ended ***")
-
-            tmp_mal = []
-            tmp_clean = []
-            for i in range(X_pca_train.shape[0]):
-                if Y_train[i] == 1:
-                    tmp_mal.append(X_pca_train[i][:])
-                else:
-                    tmp_clean.append(X_pca_train[i][:])
-
-            if len(tmp_clean) > len(tmp_mal):
-                mmd_mal = tmp_mal
-                mmd_clean = random.sample(tmp_clean, len(tmp_mal))
+            # cross validate
+            if n != 2:
+                f1, precision, recall, auc = model_predict.model_predict(model_all, X_train_reduced_all, Y_train_all)
             else:
-                mmd_mal = random.sample(tmp_clean, len(tmp_clean))
-                mmd_clean = tmp_clean
+                f1, precision, recall, auc = model_predict.model_predict(model_all, X_test_reduced_all, Y_test_all)
+            elapsed_time = time.process_time() - t
 
-            if j != 0 and j!= 1:
-                mmd_distance = MMD_Distance.mmd_rbf(mmd_clean, mmd_mal)
-                print("MMD Distance: ",mmd_distance)
-            else:
-                mmd_distance = 0
+            output_csv.output_csv_data(model_type[n], dimen_reduc_type[j], feature_count,
+                                       f1, precision, recall, auc,
+                                       eugrid_distance, mmd_distance, energy_distance, elapsed_time,
+                                       attack_rate_nodebug[j])
 
-            energy_distance = Energy_Distance.ed(mmd_clean, mmd_mal)
-            print("Energy Distance:", energy_distance)
+        j = j + 1
+        cf.set_value("dimen_reduc_type", j)
 
-            # Distance self calculation #
-            distance_self = np.linalg.norm(np.array(mmd_clean)-np.array(mmd_mal))
-            print("Eugrid Distance:", distance_self)
-
-            print("*** Model Training Started ***")
-            for n in range(3):
-
-                t = time.process_time()
-                if n == 0:
-                    model = sklearn.ensemble.RandomForestClassifier(max_depth=None,
-                                                                    n_estimators=10,
-                                                                    bootstrap=False,
-                                                                    criterion='entropy', random_state=0)
-                elif n == -1:
-                    model = svm.SVC()
-                    model.fit(X_pca_train, Y_train.ravel())
-                elif n == 1:
-                    model = svm.LinearSVC(C=1,random_state=0)
-                    print("*** Model Attack Start ***")
-                    model.fit(X_pca_train, Y_train.ravel())
-                    w = model.coef_
-                    test_mal = []
-                    for m in range(len(X_pca_test)):
-                        if Y_test[m] == 1:
-                            test_mal.append(X_pca_test[m][:])
-                    # for m in range(len(X_pca_train)):
-                    #     if Y_train[m] == 0:
-                    #         test_mal.append(X_pca_train[m][:])
-
-                    # for m in range(len(X_test)):
-                    #     if Y_test[m] == 0:
-                    #         test_mal.append(X_test[m][:])
-                    # for m in range(len(X_train)):
-                    #     if Y_train[m] == 0:
-                    #         test_mal.append(X_train[m][:])
-
-                    target_num = len(test_mal)
-                    eps = 0
-
-                    while eps <= 1:
-                        success_num = 0
-                        ww = w / np.linalg.norm(np.array(w), ord='fro')
-                        for ii in range(len(test_mal)):
-                            X_AE_test = test_mal[ii] - (eps * ww)
-                            Y_AE_test = model.predict(X_AE_test.reshape(1, len(X_AE_test[0])))
-                            X_prediction = test_mal[ii].reshape(1, len(test_mal[ii]))
-                            Y_prediction = model.predict(X_prediction)
-                            if Y_AE_test == 0 and Y_prediction == 1:
-                                success_num = success_num + 1
-                        attack_rate = round(100 * (success_num / target_num), 2)
-                        attack_x[j].append(eps)
-                        attack_y[j].append(attack_rate)
-                        eps = round(eps + 0.01, 2)
-                    print("attack_y:", attack_y[j])
-                    print("*** Model Attack Ended ***")
-                else:
-                    model = LinearDiscriminantAnalysis(n_components=1)
-
-                print("Model:", n)
-                scores = cross_validate(model, X_pca_train, Y_train.ravel(), cv=10,
-                                        scoring=['precision', 'f1', 'accuracy', 'recall'], return_train_score=False)
-                elapsed_time = time.process_time() - t
-                auc = str(round(100 * scores['test_accuracy'].mean(), 2)) + "%"
-                recall = str(round(100 * scores['test_recall'].mean(), 2)) + "%"
-                f1 = str(round(100 * scores['test_f1'].mean(), 2)) + "%"
-                precision = str(round(100 * scores['test_precision'].mean(), 2)) + "%"
-
-                data.append([mode_type[n], fig_title, feature_count[r], f1, precision, recall, auc,
-                             distance_self, mmd_distance, energy_distance, elapsed_time])
-            print("*** Model Training Ended ***")
-
-    # drawing pictures of attack success rate
-    format_str = ['b-.', 'g--', 'c:', 'y', 'r-']
-
-    #label = ['No Dimension Reduction', 'LDA(1D)','PCA(1D)', 'PCA(10D)', 'PCA(100D)']
-    plt.xlabel('$\epsilon$', fontsize=15)
-    plt.ylabel("Attack_Success_Rate(%)", fontsize=10)
-    plt.axis([0, 1.0, 0, 100])
-    for j in range(5):
-        line, = plt.plot(attack_x[j], attack_y[j],format_str[j])
-        if j == 3: line.set_dashes((10,2))
-    plt.legend(['No Dimension Reduction(3000D)', 'PCA(100D)', 'PCA(10D)', 'PCA(1D)', 'LDA(1D)'],fontsize=10)
-
-    plt.tight_layout()
-    d_now = datetime.date.today()
-    plt.savefig("../result"+d_now+".jpg")
-    plt.show()
-    # title = [["FeatureHashingTrick(Feature_Count)", "Dimension Reduction Method", "F measure", "Recall", "AUC",
-    #           "Distance_self", "Distance_MMD", "Distance_Energy", "Robustness", "Elapsed_Time"]]
-    # np.savetxt("result.csv",X=np.array(title),fmt='%s', delimiter=",")
-    np.savetxt("result."+d_now+"csv",X=np.array(data), fmt='%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s', delimiter=",")
+    output_graph.output_graph(attack_x, attack_y, output_file_name)
+    # output_graph.output_graph(attack_x_all, attack_y_all, "result_all")
+    output_csv.output_csv(output_file_name)
 
 
 if __name__ == "__main__":

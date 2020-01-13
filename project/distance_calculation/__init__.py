@@ -8,4 +8,4 @@
 
 # @Software  :PyCharm
 
-__all__ = ["MMD_Distance"]
+__all__ = ["energi_distance", "md_distance", "eugri_distance", "distance_data"]
